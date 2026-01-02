@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CSV → JSON Converter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Papa Parse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --border: #1f2933;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --danger: #f87171;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 2rem;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.6rem;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .panel h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    input[type="file"],
+    input[type="number"],
+    select {
+      width: 100%;
+      background: #020617;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 300px;
+      background: #020617;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      resize: vertical;
+    }
+
+    .row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .row > div {
+      flex: 1;
+      min-width: 220px;
+    }
+
+    button {
+      background: var(--accent);
+      color: #020617;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    button.danger {
+      background: var(--danger);
+      color: #020617;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .status {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.75rem;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <h1>CSV → JSON Converter</h1>
+
+    <div class="panel">
+      <h2>1. Upload CSV</h2>
+
+      <label for="csvFile">CSV File</label>
+      <input type="file" id="csvFile" accept=".csv" />
+
+      <div class="row">
+        <div>
+          <label for="schemaSelect">Schema</label>
+          <select id="schemaSelect">
+            <option value="generic">Generic (headers → keys)</option>
+            <option value="vso">VSO Import Schema</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="batchSize">Batch Size</label>
+          <input type="number" id="batchSize" min="1" value="10" />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="parseBtn">Parse CSV</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+      </div>
+
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="panel">
+      <h2>2. AI Enrichment (Optional)</h2>
+
+      <p style="font-size:0.85rem;color:var(--muted);margin-top:0;">
+        Uses AI to enrich <strong>missing fields only</strong>. Existing CSV values are never overwritten.
+        If AI is uncertain, fields are left blank and marked as low confidence.
+      </p>
+
+      <label for="openaiKey">OpenAI API Key (local only)</label>
+      <input
+        type="password"
+        id="openaiKey"
+        placeholder="sk-..."
+        autocomplete="off"
+      />
+
+      <div class="row">
+        <div>
+          <label>
+            <input type="checkbox" id="enrichWebsite" checked />
+            Enrich Website (official sites only)
+          </label>
+        </div>
+
+        <div>
+          <label>
+            <input type="checkbox" id="enrichAddress" checked />
+            Enrich Address (Google Maps format)
+          </label>
+        </div>
+
+        <div>
+          <label>
+            <input type="checkbox" id="enrichOverview" />
+            Generate Overview (short paragraph)
+          </label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="runEnrichmentBtn">Run AI Enrichment</button>
+      </div>
+
+      <div id="aiStatus" class="status"></div>
+    </div>
+
+    <div class="panel">
+      <h2>3. JSON Output</h2>
+
+      <textarea id="jsonOutput" readonly placeholder="JSON output will appear here…"></textarea>
+
+      <div class="actions">
+        <button id="copyBtn">Copy JSON</button>
+        <button id="downloadBtn" class="secondary">Download .json</button>
+      </div>
+    </div>
+
+    <footer>
+      Local-only tool · Files never leave your machine
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
